@@ -22,8 +22,11 @@ import java.io.IOException;
 public class Rc522 {
     private static final String TAG = "Rc522";
     private SpiDevice device;
+    private SpiDevice device2;
+
     private Gpio resetPin;
     private int busSpeed = 1000000;
+    private int busSpeed2 = 1000000;
 
     private byte[] uid;
 
@@ -105,6 +108,17 @@ public class Rc522 {
         initializePeripherals();
     }
 
+    public Rc522(SpiDevice spiDevice, SpiDevice spiDevice2, Gpio resetPin) throws IOException {
+        this.device = spiDevice;
+        this.device2 = spiDevice2;
+
+        Log.d(TAG, "Rc522 -->" + this.device + "dev2 --> " + this.device2);
+        this.resetPin = resetPin;
+
+        //setDevice2(spiDevice2);
+        initializePeripherals();
+    }
+
     /**
      * Initializes RC522 with the configured SPI port and pins.
      * @param spiDevice SPI port used on the board
@@ -113,7 +127,14 @@ public class Rc522 {
     public Rc522(SpiDevice spiDevice, Gpio resetPin) throws IOException {
         this.device = spiDevice;
         this.resetPin = resetPin;
+
+        //setDevice2();
         initializePeripherals();
+    }
+
+    public void setDevice2(SpiDevice spiDevice) {
+        this.device2 = spiDevice;
+        Log.d(TAG, "setDevice2 -->"+ device2);
     }
 
     /**
@@ -121,10 +142,19 @@ public class Rc522 {
      * @throws IOException if the hardware board had a problem with its hardware ports
      */
     private void initializePeripherals() throws IOException {
+        Log.d(TAG, "initializePeripherals -->" +  device + " --" + device2);
         device.setFrequency(busSpeed);
+
+        //setFrequence2(device2);
+        //device2.setFrequency(busSpeed2);
         resetPin.setDirection(Gpio.DIRECTION_OUT_INITIALLY_HIGH);
         initializeDevice();
     }
+
+    //public void setFrequence2(SpiDevice spiDevice) throws IOException{
+    //    this.device2 = spiDevice;
+    //    device2.setFrequency(busSpeed);
+    //}
 
     /**
      * Performs the initial device setup and configure the pins used
@@ -218,31 +248,43 @@ public class Rc522 {
      * @param value The value that will be written
      */
     private void writeRegister(byte address, byte value){
+        //Log.d(TAG, "writerRegister");
+        //Log.d(TAG, "writeRegister -->" + address);
+        //Log.d(TAG, "writeValue -->" + value);
+
         byte buffer[] = {(byte) (((address << 1) & 0x7E)), value};
+        //Log.d(TAG, "writeBuffer -->" + buffer.toString());
         byte response[] = new byte[buffer.length];
         try {
             device.transfer(buffer, response, buffer.length);
+            //writeRegister2(address, value);
+            //device2.transfer(buffer, response, buffer.length);
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
+
     /**
      * Reads the current value on the RC522's register
-     * @param address The address to read from
+     * @param address The address to read frrom
      * @return the byte value currently stored in the register
      */
     public byte readRegister(byte address){
+        //Log.d(TAG, "red")
         byte buffer[] = {(byte) (((address << 1) & 0x7E) | 0x80), 0};
         byte response[] = new byte[buffer.length];
         try {
             device.transfer(buffer, response, buffer.length);
+            //readRegister2(address);
+            //device2.transfer(buffer, response, buffer.length);
             return response[1];
         } catch (IOException e) {
             e.printStackTrace();
             return 0;
         }
     }
+
 
     /**
      * Disables or enables the RC522's antenna
@@ -864,9 +906,15 @@ public class Rc522 {
      * @return A string representing the block's data
      */
     public static String dataToHexString(byte[] data){
+        Log.d(TAG, "data length -->"+ data.length);
+
+            //18 buffer -->
         char[] buffer = new char[data.length*3];
         for(int i = 0; i < data.length; i++){
             int b = data[i] & 0xFF;
+
+            Log.d(TAG,  "buffer  b-->"+ b);
+            Log.d(TAG, "data[" + i + "]");
             buffer[i*3] = HEX_CHARS[b >>> 4];
             buffer[i*3+1] = HEX_CHARS[b & 0x0F];
             buffer[i*3+2] = ' ';
