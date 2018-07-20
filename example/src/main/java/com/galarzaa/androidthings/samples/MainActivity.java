@@ -19,7 +19,12 @@ import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
     private Rc522 mRc522;
+    private Rc522 mRc522b;
+
     RfidTask mRfidTask;
+
+    RfidTask2 mRfidTask2;
+
     private TextView mTagDetectedView;
     private TextView mTagUidView;
     private TextView mTagResultsView;
@@ -51,7 +56,11 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 mRfidTask = new RfidTask(mRc522);
-                mRfidTask.execute();
+                mRfidTask2 = new RfidTask2(mRc522b);
+
+                mRfidTask.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+                mRfidTask2.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+
                 ((Button)v).setText(R.string.reading);
             }
         });
@@ -73,8 +82,9 @@ public class MainActivity extends AppCompatActivity {
             //Log.d(TAG, "spiDevice -->" + "--"+ spiDevice2.getName());
             //mRc522 = new Rc522(spiDevice, spiDevice2, gpioReset);
             //mRc522 = new Rc522(spiDevice, spiDevice2, gpioReset);
- 
+
             mRc522 = new Rc522(spiDevice, gpioReset);
+            mRc522b = new Rc522(spiDevice2, gpioReset);
 
 
             //mRc522 = new Rc522(spiDevice, spiDevice2, gpioReset);
@@ -207,4 +217,109 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
+
+    /**
+     * SPI0.1에 연결 된 RC522 리더기를 통신하기 위한 AsyncTask.
+     */
+    private class RfidTask2 extends AsyncTask<Object, Object, Boolean> {
+        private static final String TAG = "RfidTask2";
+        private Rc522 rc522;
+
+
+        RfidTask2(Rc522 rc522) {
+            this.rc522 = rc522;
+        }
+
+        @Override
+        protected void onPreExecute() {
+            button.setEnabled(false);
+            mTagResultsView.setVisibility(View.GONE);
+            mTagDetectedView.setVisibility(View.GONE);
+            mTagUidView.setVisibility(View.GONE);
+            resultsText = "";
+        }
+
+        @Override
+        protected Boolean doInBackground(Object... params) {
+            rc522.stopCrypto();
+
+            while (true) {
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                    return null;
+                }
+
+                //check if a rfid tag has been found
+                if (!rc522.request()) {
+                    Log.d(TAG, "request2 rcc....");
+                    continue;
+                }
+
+                //충돌검사
+                if (!rc522.antiCollisionDetect()) {
+                    Log.d(TAG, "antiCollision2");
+                    continue;
+                }
+
+                byte[] uuid = rc522.getUuid();
+                Log.d(TAG, "uuid2 -->" + rc522.selectTag(uuid));
+                return rc522.selectTag(uuid);
+            }
+
+        }
+
+        @Override
+        protected void onPostExecute(Boolean success) {
+            mTagResultsView.setText(R.string.unknown_error);
+
+            //통신이 끝날 때까지 RC522가 아닌 다른 작업x
+            byte address = Rc522.getBlockAddress(2,1);
+
+            Log.d(TAG, "addRess -->" + address);
+            byte[] key = {(byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF, (byte)0xFF};
+
+            Log.d(TAG, "key ->" + key);
+
+            byte[] newData = {0x0F,0x0E,0x0D,0x0C,0x0B,0x0A,0x09,0x08,0x07,0x06,0x05,0x04,0x03,0x02,0x01,0x00};
+
+            try {
+                boolean result = rc522.authenticateCard(Rc522.AUTH_A, address, key);
+                if (!result) {
+                    mTagResultsView.setText(R.string.authetication_error);
+                    return;
+                }
+
+                result = rc522.writeBlock(address, newData);
+                if (!result) {
+                    mTagResultsView.setText(R.string.write_error);
+                    return;
+                }
+
+                resultsText += "Sector written successfully";
+                byte[] buffer = new byte[16];
+                Log.d(TAG, "buffer ->" + buffer);
+                //Since we're still using the same block, we don't need to authenticate again
+                result = rc522.readBlock(address, buffer);
+                if(!result){
+                    mTagResultsView.setText(R.string.read_error);
+                    return;
+                }
+                resultsText += "\nSector read successfully: "+ Rc522.dataToHexString(buffer);
+
+                Log.d(TAG, "resultsText-->" + resultsText);
+                rc522.stopCrypto();
+                mTagResultsView.setText(resultsText);
+            }finally{
+                button.setEnabled(true);
+                button.setText(R.string.start);
+                mTagUidView.setText(getString(R.string.tag_uid,rc522.getUidString()));
+                mTagResultsView.setVisibility(View.VISIBLE);
+                mTagDetectedView.setVisibility(View.VISIBLE);
+                mTagUidView.setVisibility(View.VISIBLE);
+            }
+            }
+        }
+
 }
