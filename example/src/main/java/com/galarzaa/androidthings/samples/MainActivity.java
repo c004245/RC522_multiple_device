@@ -73,7 +73,7 @@ public class MainActivity extends AppCompatActivity {
             //Log.d(TAG, "spiDevice -->" + "--"+ spiDevice2.getName());
             //mRc522 = new Rc522(spiDevice, spiDevice2, gpioReset);
             //mRc522 = new Rc522(spiDevice, spiDevice2, gpioReset);
-
+ 
             mRc522 = new Rc522(spiDevice, gpioReset);
 
 
